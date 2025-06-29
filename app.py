@@ -1,5 +1,11 @@
 # app.py
-from flask import Flask, request, jsonify, render_template
+# This is a FastAPI application for a chatbot using Groq API
+# You can modify this file to change the chatbot behavior
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from groq import Groq
 import os
 import re
@@ -8,7 +14,10 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-app = Flask(__name__, template_folder="templates")
+app = FastAPI()
+
+# Set up templates
+templates = Jinja2Templates(directory="templates")
 
 # Set Groq API key from environment variable
 groq_api_key = os.getenv("GROQ_API_KEY")
@@ -17,6 +26,12 @@ if not groq_api_key:
 
 client = Groq(api_key=groq_api_key)
 
+# Pydantic models
+class ChatRequest(BaseModel):
+    message: str
+
+class ChatResponse(BaseModel):
+    response: str
 
 def clean_response(text):
     """Remove thinking process from AI response"""
@@ -65,15 +80,15 @@ def generate_chat_response(user_msg, history=None):
     # Clean the response before returning
     return clean_response(response.choices[0].message.content)
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-@app.route("/chat", methods=["POST"])
-def chat():
-    user_input = request.json.get("message")
-    response = generate_chat_response(user_input)
-    return jsonify({"response": response})
+@app.post("/chat", response_model=ChatResponse)
+async def chat(chat_request: ChatRequest):
+    response = generate_chat_response(chat_request.message)
+    return ChatResponse(response=response)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5001)
