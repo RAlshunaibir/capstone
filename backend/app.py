@@ -22,10 +22,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 # Import database models and session
-from database import get_db, User, Conversation, Message
+from database import get_db, User, Conversation, Message, engine, Base
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Initialize database tables on startup
+def init_db():
+    """Initialize database tables"""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"⚠️ Database initialization warning: {e}")
+
+# Initialize database on startup
+init_db()
 
 app = FastAPI()
 

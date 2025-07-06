@@ -9,7 +9,7 @@ from datetime import datetime
 import os
 
 # Database URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://chatbot_user:chatbot_password@localhost:5432/chatbot_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://chatbot_user:chatbot_password@postgres:5432/chatbot_db")
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)

@@ -14,6 +14,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persist data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatbot_user -d chatbot_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # FastAPI Application
   app:
@@ -28,7 +33,8 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # React Frontend
