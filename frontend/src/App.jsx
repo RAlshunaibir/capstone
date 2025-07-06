@@ -118,9 +118,9 @@ function App() {
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       <div className={`app-wrapper ${theme}`}>
         <div className="topbar">
-          <div className="topbar-content">
-            <span>Qwen Chatbot</span>
-            <div className="topbar-actions">
+                  <div className="topbar-content">
+          <span>Rakan's Chatbot</span>
+          <div className="topbar-actions">
               {isAuthenticated && (
                 <button
                   className="theme-toggle-btn"

@@ -173,15 +173,15 @@ body {
 
 /* New sidebar layout */
 .chat-layout {
-  width: 100%;
-  max-width: 1200px;
+  width: 95%;
+  max-width: 1400px;
   min-width: 350px;
-  height: 72vh;
+  height: calc(100vh - 120px);
   background: var(--bg-primary);
   box-shadow: 0 10px 32px var(--shadow-primary);
   border-radius: 18px;
   display: flex;
-  margin: 80px auto 40px auto;
+  margin: 20px auto;
   overflow: hidden;
   border: 1px solid var(--border-primary);
   transition: all 0.3s ease;
@@ -189,7 +189,7 @@ body {
 
 /* Sidebar styles */
 .chat-sidebar {
-  width: 280px;
+  width: 320px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-primary);
   display: flex;
@@ -506,9 +506,9 @@ body {
 @media (max-width: 900px) {
   .chat-layout {
     max-width: 95%;
-    margin: 40px auto 20px auto;
+    margin: 10px auto;
     flex-direction: column;
-    height: 85vh;
+    height: calc(100vh - 80px);
   }
 
   .chat-sidebar {

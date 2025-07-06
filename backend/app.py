@@ -52,7 +52,7 @@ RATE_LIMIT_PER_MINUTE = 10
 
 # Chat configuration
 CHAT_CONFIG = {
-    "model": "qwen-qwq-32b",
+    "model": "llama3-8b-8192",
     "temperature": 0.7,
     "max_tokens": 512,
     "max_history": 10,

@@ -222,7 +222,7 @@ export default function Chat({ onAuthError }) {
 
       {/* Main Chat Area */}
       <div className="chat-main">
-        <div className="chat-header">Qwen Chatbot</div>
+        <div className="chat-header">Rakan's Chatbot</div>
         <div className="chat-box" ref={chatBoxRef}>
           {messages.map((msg, idx) => (
             <div

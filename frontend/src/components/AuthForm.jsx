@@ -49,7 +49,7 @@ export default function AuthForm({ onAuthSuccess }) {
     <div className="auth-container">
       <div className="auth-logo-title">
         <span className="auth-logo">🤖</span>
-        <h1 className="auth-title">Qwen Chatbot</h1>
+        <h1 className="auth-title">Rakan's Chatbot</h1>
         <p className="auth-welcome">Welcome! Please log in or sign up to start chatting.</p>
       </div>
       <form className="auth-form" onSubmit={handleSubmit}>
