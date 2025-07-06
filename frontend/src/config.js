@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://16.16.143.179:8000';
 
 export const API_ENDPOINTS = {
   ME: `${API_BASE_URL}/me`,
