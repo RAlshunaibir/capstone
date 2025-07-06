@@ -229,9 +229,7 @@ export default function Chat({ onAuthError }) {
               key={idx}
               className={`message ${msg.role}`}
             >
-              <div className="avatar">
-                {msg.role === 'user' ? '🧑' : '🤖'}
-              </div>
+              <div className={`avatar ${msg.role}`}>{(msg.role === 'bot' || msg.role === 'assistant') ? 'AI' : ''}</div>
               <div className="bubble">{msg.content}</div>
             </div>
           ))}

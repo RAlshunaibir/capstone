@@ -88,23 +88,6 @@ function App() {
     }
   }, [isAuthenticated])
 
-  // Close user menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (!event.target.closest('.user-menu-container')) {
-        setShowUserMenu(false)
-      }
-    }
-
-    if (showUserMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showUserMenu])
-
   // Wrapper for Chat to handle auth errors
   const ChatWithAuthCheck = () => (
     <Chat
@@ -127,27 +110,22 @@ function App() {
                   onClick={toggleTheme}
                   title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
                 >
-                  {theme === 'dark' ? '☀️' : '🌙'}
+                  {theme === 'dark' ? 'Light' : 'Dark'}
                 </button>
               )}
               {isAuthenticated && currentUser && (
                 <div className="user-menu-container">
-                  <button
-                    className="username-btn"
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                  >
+                  <span className="username-btn">
                     {currentUser.username}
-                  </button>
-                  {showUserMenu && (
-                    <div className="user-dropdown">
-                      <button
-                        className="logout-btn-red"
-                        onClick={handleLogout}
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  )}
+                  </span>
+                  <div className="user-dropdown">
+                    <button
+                      className="logout-btn-red"
+                      onClick={handleLogout}
+                    >
+                      Logout
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -5,6 +5,7 @@ export default function AuthForm({ onAuthSuccess }) {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
   const [form, setForm] = useState({ username: '', email: '', password: '' });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -13,10 +14,19 @@ export default function AuthForm({ onAuthSuccess }) {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     const endpoint = mode === 'login' ? '/login' : '/signup';
     const payload = mode === 'login'
       ? { username: form.username, password: form.password }
       : { username: form.username, email: form.email, password: form.password };
+
+    if (mode === 'signup') {
+      // Only allow .sa or .com emails
+      if (!/\.(sa|com)$/i.test(form.email.trim())) {
+        setError('Only .sa or .com emails are allowed.');
+        return;
+      }
+    }
 
     try {
       const res = await fetch(endpoint === '/login' ? API_ENDPOINTS.LOGIN : API_ENDPOINTS.SIGNUP, {
@@ -38,7 +48,7 @@ export default function AuthForm({ onAuthSuccess }) {
       } else {
         // On signup, switch to login mode
         setMode('login');
-        setError('Signup successful! Please log in.');
+        setSuccess('Signup successful! Please log in.');
       }
     } catch (err) {
       setError('Network error');
@@ -48,7 +58,6 @@ export default function AuthForm({ onAuthSuccess }) {
   return (
     <div className="auth-container">
       <div className="auth-logo-title">
-        <span className="auth-logo">🤖</span>
         <h1 className="auth-title">Rakan's Chatbot</h1>
         <p className="auth-welcome">Welcome! Please log in or sign up to start chatting.</p>
       </div>
@@ -80,6 +89,7 @@ export default function AuthForm({ onAuthSuccess }) {
           required
         />
         <button type="submit">{mode === 'login' ? 'Login' : 'Sign Up'}</button>
+        {success && <div className="auth-success">{success}</div>}
         {error && <div className="auth-error">{error}</div>}
         <div className="auth-toggle">
           {mode === 'login' ? (
