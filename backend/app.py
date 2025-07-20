@@ -20,9 +20,13 @@ import hashlib
 import secrets
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+import requests  # Add this import for web search
 
 # Import database models and session
 from database import get_db, User, Conversation, Message, engine, Base
+from database_handler import DatabaseHandler
+from llm_handler import LLMHandler
+from chat_service import ChatService
 
 # Load environment variables from .env file
 load_dotenv()
@@ -50,6 +54,9 @@ if not groq_api_key:
     raise ValueError("GROQ_API_KEY environment variable is not set")
 
 client = Groq(api_key=groq_api_key)
+
+# Set SerpAPI key from environment variable
+serpapi_key = os.getenv("SERPAPI_KEY", "501edf32b5c7263283844bf0cc44ffe3200d349911f00cd4d5853bb02edb6a5b")
 
 # JWT Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
@@ -213,32 +220,42 @@ def clean_response(text):
     
     return text.strip()
 
-def generate_chat_response(user_msg: str, session_id: str, username: str) -> str:
-    """Generate a response using Groq API"""
+def web_search_snippets(query: str, serpapi_key: str, num_results: int = 3) -> str:
+    """Search the web using SerpAPI and return concatenated snippets."""
     try:
-        # Prepare the message for the API
-        messages = [
-            {"role": "system", "content": CHAT_CONFIG["system_prompt"]},
-            {"role": "user", "content": user_msg}
-        ]
-        
-        # Call Groq API
-        response = client.chat.completions.create(
-            model=CHAT_CONFIG["model"],
-            messages=messages,
-            temperature=CHAT_CONFIG["temperature"],
-            max_tokens=CHAT_CONFIG["max_tokens"]
-        )
-        
-        # Extract and clean the response
-        response_text = response.choices[0].message.content
-        cleaned_response = clean_response(response_text)
-        
-        return cleaned_response
-        
+        params = {
+            "q": query,
+            "api_key": serpapi_key,
+            "engine": "google",
+            "num": num_results
+        }
+        response = requests.get("https://serpapi.com/search", params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        snippets = []
+        for result in data.get("organic_results", [])[:num_results]:
+            snippet = result.get("snippet") or result.get("title")
+            if snippet:
+                snippets.append(snippet)
+        return "\n".join(snippets)
     except Exception as e:
-        print(f"Error generating response: {e}")
-        return "I apologize, but I'm having trouble processing your request right now. Please try again later."
+        print(f"Web search error: {e}")
+        return ""
+
+# Remove direct Groq client and web search logic, use handlers instead
+
+def get_db_handler(db: Session = Depends(get_db)):
+    return DatabaseHandler(db)
+
+def get_llm_handler():
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY environment variable is not set")
+    return LLMHandler(api_key=groq_api_key, chat_config=CHAT_CONFIG)
+
+def get_chat_service(db_handler: DatabaseHandler = Depends(get_db_handler), llm_handler: LLMHandler = Depends(get_llm_handler)):
+    serpapi_key = os.getenv("SERPAPI_KEY", "501edf32b5c7263283844bf0cc44ffe3200d349911f00cd4d5853bb02edb6a5b")
+    return ChatService(db_handler, llm_handler, serpapi_key)
 
 # Add CORS middleware
 app.add_middleware(
@@ -339,7 +356,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     )
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(chat_request: ChatRequest, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def chat(chat_request: ChatRequest, request: Request, current_user: User = Depends(get_current_user), db_handler: DatabaseHandler = Depends(get_db_handler), chat_service: ChatService = Depends(get_chat_service)):
     """Chat endpoint that requires authentication"""
     # Rate limiting
     client_ip = request.client.host
@@ -348,7 +365,6 @@ async def chat(chat_request: ChatRequest, request: Request, current_user: User =
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Please wait before sending more messages."
         )
-    
     # Input validation
     is_valid, error_msg = validate_input(chat_request.message)
     if not is_valid:
@@ -356,49 +372,10 @@ async def chat(chat_request: ChatRequest, request: Request, current_user: User =
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=error_msg
         )
-    
     # Generate session ID for conversation tracking
     session_id = generate_session_id()
-    
-    # Generate response with username
-    response_text = generate_chat_response(chat_request.message, session_id, username=current_user.username)
-    
-    # Create or get conversation in database
-    conversation = db.query(Conversation).filter(Conversation.session_id == session_id).first()
-    if not conversation:
-        conversation = Conversation(
-            session_id=session_id,
-            user_id=current_user.id,
-            created_at=datetime.utcnow(),
-            last_activity=datetime.utcnow()
-        )
-        db.add(conversation)
-        db.commit()
-        db.refresh(conversation)
-    
-    # Add user message to database
-    user_message = Message(
-        conversation_id=conversation.id,
-        role="user",
-        content=chat_request.message,
-        timestamp=datetime.utcnow()
-    )
-    db.add(user_message)
-    
-    # Add bot response to database
-    bot_message = Message(
-        conversation_id=conversation.id,
-        role="assistant",
-        content=response_text,
-        timestamp=datetime.utcnow()
-    )
-    db.add(bot_message)
-    
-    # Update conversation last activity
-    conversation.last_activity = datetime.utcnow()
-    
-    db.commit()
-    
+    # Use ChatService to handle chat logic
+    response_text, _ = chat_service.chat(chat_request.message, session_id, username=current_user.username, user_id=current_user.id)
     return ChatResponse(
         response=response_text,
         session_id=session_id,
@@ -406,24 +383,13 @@ async def chat(chat_request: ChatRequest, request: Request, current_user: User =
     )
 
 @app.get("/chat/history", response_model=List[ChatHistoryResponse])
-async def get_chat_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_chat_history(current_user: User = Depends(get_current_user), db_handler: DatabaseHandler = Depends(get_db_handler)):
     """Get chat history for the current user"""
-    # Get user's conversations from database
-    conversations = db.query(Conversation).filter(Conversation.user_id == current_user.id).all()
-    
+    conversations = db_handler.get_user_conversations(current_user.id)
     chat_history = []
     for conversation in conversations:
-        # Get messages for this conversation
-        messages = db.query(Message).filter(Message.conversation_id == conversation.id).order_by(Message.timestamp).all()
-        
-        # Convert messages to the expected format
-        message_list = []
-        for msg in messages:
-            message_list.append({
-                "role": msg.role,
-                "content": msg.content
-            })
-        
+        messages = db_handler.get_conversation_messages(conversation.id)
+        message_list = [{"role": msg.role, "content": msg.content} for msg in messages]
         chat_history.append(ChatHistoryResponse(
             session_id=conversation.session_id,
             messages=message_list,
@@ -431,38 +397,20 @@ async def get_chat_history(current_user: User = Depends(get_current_user), db: S
             last_activity=conversation.last_activity.isoformat(),
             message_count=len(message_list)
         ))
-    
-    # Sort by last activity (most recent first)
     chat_history.sort(key=lambda x: x.last_activity, reverse=True)
-    
     return chat_history
 
 @app.get("/chat/history/{session_id}", response_model=ChatHistoryResponse)
-async def get_chat_history_by_session(session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_chat_history_by_session(session_id: str, current_user: User = Depends(get_current_user), db_handler: DatabaseHandler = Depends(get_db_handler)):
     """Get chat history for a specific session"""
-    # Get conversation from database
-    conversation = db.query(Conversation).filter(
-        Conversation.session_id == session_id,
-        Conversation.user_id == current_user.id
-    ).first()
-    
+    conversation = db_handler.get_conversation(session_id, user_id=current_user.id)
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
-    
-    # Get messages for this conversation
-    messages = db.query(Message).filter(Message.conversation_id == conversation.id).order_by(Message.timestamp).all()
-    
-    # Convert messages to the expected format
-    message_list = []
-    for msg in messages:
-        message_list.append({
-            "role": msg.role,
-            "content": msg.content
-        })
-    
+    messages = db_handler.get_conversation_messages(conversation.id)
+    message_list = [{"role": msg.role, "content": msg.content} for msg in messages]
     return ChatHistoryResponse(
         session_id=session_id,
         messages=message_list,
@@ -472,24 +420,15 @@ async def get_chat_history_by_session(session_id: str, current_user: User = Depe
     )
 
 @app.delete("/chat/history/{session_id}")
-async def delete_chat_history(session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def delete_chat_history(session_id: str, current_user: User = Depends(get_current_user), db_handler: DatabaseHandler = Depends(get_db_handler)):
     """Delete chat history for a specific session"""
-    # Get conversation from database
-    conversation = db.query(Conversation).filter(
-        Conversation.session_id == session_id,
-        Conversation.user_id == current_user.id
-    ).first()
-    
+    conversation = db_handler.get_conversation(session_id, user_id=current_user.id)
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
-    
-    # Delete conversation (messages will be deleted automatically due to cascade)
-    db.delete(conversation)
-    db.commit()
-    
+    db_handler.delete_conversation(conversation)
     return {"message": "Chat history deleted successfully"}
 
 @app.get("/users")
